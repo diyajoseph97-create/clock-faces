@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<title>Clock Face</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@property --skyA{syntax:'<color>';inherits:true;initial-value:#2f86ee}
+:root{--ink:#fffaf0;--glow:rgba(12,60,140,.5);--ease:cubic-bezier(.2,.7,.2,1);--menu-w:50%}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#fff;font-family:Poppins,system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased;color:#161616}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+
+.shell{position:fixed;inset:0;display:flex}
+
+/* index menu on the left; the face moves into a card on the right */
+/* index menu on the left; the face moves into a card on the right (as on timeface) */
+.menu{width:0;overflow:hidden;flex:none;background:#fff;transition:width .55s var(--ease);position:relative}
+body.menu-open .menu{width:var(--menu-w)}
+body.menu-open .stage-wrap{padding:14px}
+body.menu-open .stage{border-radius:24px}
+.menu-inner{min-width:340px;width:100%;height:100%;position:relative;padding:40px 44px}
+.menu-list{position:absolute;left:41%;right:24px;bottom:26px;list-style:none}
+.menu-list li{margin:0}
+.menu-item{display:flex;align-items:center;gap:14px;width:100%;height:48px;text-align:left;padding:0;font-size:17px;line-height:20px;font-weight:500;white-space:nowrap}
+.menu-item .n{font-family:'DM Mono',monospace;font-size:17px;color:#161616;opacity:.6;width:36px}
+.menu-item .tg{margin-left:10px;font-size:13px;color:#b4b8c0;font-weight:400}
+.menu-item:hover{opacity:.7}
+/* footer row shares its baseline with the last menu item: brand at the left, close button just left of the list */
+.menu-foot{position:absolute;left:0;right:0;bottom:30px;height:40px;display:flex;align-items:center}
+.menu-brand{padding-left:24px;font-size:17px;font-weight:500;line-height:1}
+.menu-x{position:absolute;left:calc(41% - 54px);top:0;bottom:0;margin:auto 0;width:40px;height:40px;display:grid;place-items:center;border-radius:50%}
+.menu-x:hover{background:#f2f2f4}
+.menu-x svg{width:24px;height:24px}
+
+.stage-wrap{position:relative;flex:1;min-width:0;transition:padding .55s var(--ease)}
+.device{position:relative;width:100%;height:100%}
+.stage{position:relative;width:100%;height:100%;overflow:hidden;background:var(--skyA);container-type:size;isolation:isolate;
+  transition:--skyA 1.6s ease,border-radius .55s var(--ease)}
+
+
+/* painted layers, bottom to top: sky + clouds + sun, rain/snow/stars/lightning, storm flash, speckle, grain, face */
+.cv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#scene{z-index:1}
+#fx{z-index:4}
+#flash{position:absolute;inset:0;z-index:5;pointer-events:none;background:var(--flash,#fff);opacity:0}
+#flash.on{animation:flash .95s ease-out}
+@keyframes flash{0%{opacity:0}4%{opacity:.7}10%{opacity:.08}16%{opacity:.5}40%,100%{opacity:0}}
+.speckle{position:absolute;inset:0;z-index:6;pointer-events:none;background-size:220px 220px;opacity:.28}
+.grain{position:absolute;inset:0;z-index:7;pointer-events:none;opacity:.1;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+
+.face{position:absolute;inset:0;z-index:10;color:var(--ink);text-align:center;pointer-events:none;transition:color 1.4s;
+  text-shadow:0 .05em 0 var(--glow),0 0 .45em var(--glow);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.time{font-size:30cqmin;font-weight:600;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.date{font-size:5.6cqmin;font-weight:400;margin-top:1.4cqmin;letter-spacing:.01em}
+
+/* bottom bar */
+.bar{position:absolute;left:0;right:0;bottom:0;height:96px;padding:0 26px;display:flex;align-items:center;gap:20px;color:var(--ink);z-index:20;
+  transition:opacity .5s,transform .5s var(--ease),color 1.4s}
+body.menu-open .bar{display:none}
+.bar.idle{opacity:0;transform:translateY(8px);pointer-events:none}
+.burger{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.burger:hover{background:rgba(255,255,255,.5)}
+.burger svg{width:22px;height:22px}
+.piece{display:flex;align-items:center;gap:12px;font-size:17px;font-weight:500}
+.piece .n{font-family:'DM Mono',monospace;opacity:.6}
+.btns{margin-left:auto;display:flex;gap:12px}
+.ib{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:background .2s,transform .2s}
+.ib:hover{background:rgba(255,255,255,.55)}
+.ib:active{transform:scale(.94)}
+.ib svg{width:21px;height:21px}
+
+.toast{position:fixed;left:50%;top:22px;transform:translate(-50%,-12px);background:rgba(22,22,22,.85);color:#fff;padding:10px 18px;border-radius:999px;
+  font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s var(--ease);z-index:50}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:760px){
+  :root{--menu-w:100%}
+  body.menu-open .stage-wrap{display:none}
+  .menu-inner{min-width:0;padding:36px 28px}
+  .menu-list{left:28px;right:28px}
+  .menu-foot{left:28px;right:28px}
+  .bar{height:76px;padding:0 16px;gap:12px}
+  .burger,.ib{width:46px;height:46px}
+}
+@media (prefers-reduced-motion:reduce){ .face,.bar,.menu{transition:none} #flash.on{animation:none} }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="menu" id="menu" aria-label="Faces">
+    <div class="menu-inner">
+      <ul class="menu-list" id="menuList"></ul>
+      <div class="menu-foot">
+        <span class="menu-brand">Clock faces</span>
+        <button class="menu-x" id="menuClose" aria-label="Close menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="stage-wrap">
+    <div class="device">
+      <div class="stage" id="stage">
+        <canvas id="scene" class="cv"></canvas>
+        <canvas id="fx" class="cv"></canvas>
+        <div id="flash"></div>
+        <div class="speckle" id="speckle"></div>
+        <div class="grain"></div>
+        <div class="face" aria-live="off">
+          <div class="time" id="time">--:--</div>
+          <div class="date" id="date"></div>
+        </div>
+      </div>
+    </div>
+    <div class="bar" id="bar">
+      <div class="piece"><span>Clock Face</span></div>
+      <button class="burger" id="burger" aria-label="Open faces" aria-expanded="false" title="Faces">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="piece"><span class="n">01</span><span>Weather</span></div>
+      <div class="btns">
+        <button class="ib" id="shareBtn" aria-label="Copy link" title="Share">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+        </button>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const stage = $('#stage');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const qp = new URLSearchParams(location.search);
+
+/* last good reading, kept on this device so the face can show it straight away */
+const CACHE_KEY = 'clockface-weather';
+let lastFetch = 0;
+
+/* ---------- the faces (add more here; the list and menu build from this) ---------- */
+const FACES = [
+  {n:'01', name:'Weather', tag:'', id:'clock'}
+];
+
+/* ---------- weather looks, painted after the gouache reference ---------- */
+const STATES = {
+  clear:   {label:'Clear',         n:0, sun:true, shift:.12, pal:{sky:['#2f86ee','#93cdfd'], base:'#fbf0dc', warm:'#f7c27e', pink:'#f3a9b8', shade:'#9cbbe8', sun:'#ffd84a', band:'#f7955a', ink:'#fffaf0', inkShadow:'rgba(12,60,140,.5)', fx:'#ffffff', scribble:'#1a5cc0'}},
+  mainly:  {label:'Mainly Clear',  n:1, sun:true, shift:.08, pal:{sky:['#3a86e8','#9ccdf8'], base:'#fbf0dc', warm:'#f5bd84', pink:'#f0a6ba', shade:'#a0b8e6', sun:'#ffd84a', band:'#f7955a', ink:'#fffaf0', inkShadow:'rgba(12,60,140,.5)', fx:'#ffffff', scribble:'#1a5cc0'}},
+  partly:  {label:'Partly Cloudy', n:3, sun:true, shift:0,   pal:{sky:['#5f73db','#8796ea'], base:'#f7e6cf', warm:'#f2b089', pink:'#ec97b6', shade:'#a49ad9', sun:'#fbe7b0', band:'#f2a27a', ink:'#fffaf0', inkShadow:'rgba(40,48,140,.5)', fx:'#fff3df', scribble:'#3c4cc4'}},
+  overcast:{label:'Overcast',      n:6, shift:-.08,          pal:{sky:['#767b94','#a9acbf'], base:'#e3e0e5', warm:'#c8b7bd', pink:'#b7a6bb', shade:'#787c98', ink:'#20233a', inkShadow:'rgba(250,248,252,.7)', fx:'#ffffff', scribble:'#4a4e6c'}},
+  fog:     {label:'Foggy',         n:2, fog:true, shift:.05, pal:{sky:['#c9ccd4','#efede7'], base:'#fbf8f3', warm:'#ece2d6', pink:'#e8d8de', shade:'#c9ccd8', sun:'#fff0d4', band:'#efd2bb', ink:'#353a50', inkShadow:'rgba(255,252,246,.75)', fx:'#ffffff', scribble:'#a9adbd'}},
+  drizzle: {label:'Drizzle',       n:5, rain:.4, shift:-.12, pal:{sky:['#2f8287','#79bbb6'], base:'#e3f1ea', warm:'#bcd9c6', pink:'#a7d0c8', shade:'#4c8a8b', ink:'#fffaf0', inkShadow:'rgba(8,48,52,.6)', fx:'#effffa', scribble:'#1b5a60'}},
+  rain:    {label:'Rain',          n:6, rain:1, shift:-.24,  pal:{sky:['#1b358c','#3a5fb6'], base:'#a9badf', warm:'#8ea6d0', pink:'#a596c8', shade:'#33498f', ink:'#fffaf0', inkShadow:'rgba(8,18,70,.65)', fx:'#dbe6ff', scribble:'#0f2266'}},
+  storm:   {label:'Thunderstorm',  n:8, rain:1.25, storm:true, shift:-.44, pal:{sky:['#2a1140','#53205f'], base:'#7a5590', warm:'#c4607a', pink:'#94508f', shade:'#2c173f', ink:'#fff4e2', inkShadow:'rgba(20,6,30,.7)', fx:'#e4c9f0', scribble:'#18081f', flash:'#ffe9b0', bolt:'#ffd84a'}},
+  snow:    {label:'Snow',          n:4, snow:true, shift:.07, pal:{sky:['#b3d1ef','#f1f7fd'], base:'#ffffff', warm:'#f3dfe4', pink:'#f2cfdd', shade:'#a7c1df', ink:'#22406a', inkShadow:'rgba(255,255,255,.75)', fx:'#ffffff', scribble:'#7fa3cc'}},
+  /* no reading yet: a neutral grey sky with no sun or clouds, so it never looks like real weather */
+  unknown:{label:'', n:0, pal:{sky:['#8d929c','#c4c8d0'], base:'#d9dbe0', warm:'#cfd2d8', pink:'#d4d6dc', shade:'#9a9faa', ink:'#ffffff', inkShadow:'rgba(40,44,56,.5)', fx:'#ffffff', scribble:'#6b7180'}}
+};
+const NIGHT = {sky:['#1b2068','#363c98'], base:'#5d5daa', warm:'#8b6ba8', pink:'#7b60a0', shade:'#2c3080', sun:'#f8e7c4', band:'#e9b48c', ink:'#fff6e6', inkShadow:'rgba(10,12,50,.6)', fx:'#fff3d6', scribble:'#12165a'};
+
+/* Preview hook for testing only (?state=rain&time=night). The face itself has no settings. */
+const preview = {
+  state: STATES[qp.get('state')] ? qp.get('state') : 'live',
+  time: ['dawn','day','dusk','night'].includes(qp.get('time')) ? qp.get('time') : 'auto'
+};
+
+let data = {city:'', temp:null, hum:null, code:null, sunrise:'06:00', sunset:'18:00', offset:null, live:false};
+
+/* ---------- helpers ---------- */
+const h2r = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
+const r2h = a => '#'+a.map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+const mix = (a,b,t) => { const x=h2r(a), y=h2r(b); return r2h(x.map((v,i)=>v+(y[i]-v)*t)); };
+const rgba = (h,a) => { const [r,g,b] = h2r(h); return `rgba(${r},${g},${b},${a})`; };
+function rng(seed){ let s = (seed*2654435761)>>>0 || 1; return () => { s ^= s<<13; s>>>=0; s ^= s>>>17; s ^= s<<5; s>>>=0; return s/4294967296; }; }
+const pick = (R, arr) => arr[Math.floor(R()*arr.length)];
+const pad = n => String(n).padStart(2,'0');
+const DPR = () => Math.min(devicePixelRatio || 1, 2);
+function mk(w, h){ const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
+
+function codeToState(c){
+  if (c===0) return 'clear';
+  if (c===1) return 'mainly';
+  if (c===2) return 'partly';
+  if (c===3) return 'overcast';
+  if (c===45||c===48) return 'fog';
+  if (c>=51&&c<=57) return 'drizzle';
+  if ((c>=61&&c<=67)||(c>=80&&c<=82)) return 'rain';
+  if ((c>=71&&c<=77)||c===85||c===86) return 'snow';
+  if (c>=95) return 'storm';
+  return 'partly';
+}
+
+/* ---------- time: at the location once it is known, otherwise the device clock ---------- */
+function locNow(){
+  if (data.offset != null){ const d = new Date(Date.now() + data.offset*1000); return {h:d.getUTCHours(), m:d.getUTCMinutes()}; }
+  const d = new Date(); return {h:d.getHours(), m:d.getMinutes()};
+}
+const toMin = hhmm => { const [h,m] = hhmm.split(':').map(Number); return h*60+m; };
+function autoPhase(){
+  const n = locNow(), now = n.h*60+n.m, rise = toMin(data.sunrise), set = toMin(data.sunset);
+  if (Math.abs(now-rise) <= 40 || Math.abs(now-set) <= 40) return 'golden';
+  return (now > rise && now < set) ? 'day' : 'night';
+}
+function phaseNow(){
+  const h = new Date().getHours() + new Date().getMinutes()/60;
+  if (h >= 5 && h < 7) return 'dawn';
+  if (h >= 7 && h < 16.5) return 'day';
+  if (h >= 16.5 && h < 18.5) return 'dusk';
+  return 'night';
+}
+function currentPhase(){
+  if (preview.time !== 'auto') return preview.time;
+  return data.live ? autoPhase() : phaseNow();
+}
+/* dawn and dusk share the warm, golden light */
+const LOOK = ph => (ph === 'dawn' || ph === 'dusk') ? 'golden' : ph;
+
+/* ---------- palette ---------- */
+function mixPal(p, q, t){
+  const o = {...p};
+  for (const k of ['base','warm','pink','shade','scribble']) o[k] = mix(p[k], q[k], t);
+  o.sky = [mix(p.sky[0], q.sky[0], t), mix(p.sky[1], q.sky[1], t)];
+  return o;
+}
+function palette(key, look){
+  const s = STATES[key];
+  let p = {sun:'#fbe7b0', band:'#f2a27a', flash:'#ffffff', bolt:'#ffe08a', ...s.pal};
+  if (look === 'night'){
+    const open = s.n <= 3 && !s.fog;
+    p = {...mixPal(p, NIGHT, open ? .9 : .62), sun:NIGHT.sun, band:NIGHT.band, ink:NIGHT.ink, inkShadow:NIGHT.inkShadow, fx: s.snow || s.rain ? p.fx : NIGHT.fx};
+  } else if (look === 'golden'){
+    const k = s.n <= 3 ? 1 : .55;
+    p = {...p, sky:[mix(p.sky[0],'#7c72d6',.25*k), mix(p.sky[1],'#ee9eae',.6*k)], warm:mix(p.warm,'#f59a72',.4*k), pink:mix(p.pink,'#ef8fb0',.3*k), sun:'#ffd08a', band:'#ef7d5e'};
+  }
+  if (s.snow) p.fx = '#ffffff';
+  return p;
+}
+
+/* ---------- painting: sprites ---------- */
+function blobPath(ctx, cx, cy, r, ph){
+  const n = 48;
+  for (let i = 0; i <= n; i++){
+    const a = i/n * Math.PI*2;
+    const rr = r * (1 + (ph[3] ?? 1)*(.05*Math.sin(3*a+ph[0]) + .035*Math.sin(7*a+ph[1]) + .018*Math.sin(15*a+ph[2])));
+    const x = cx + Math.cos(a)*rr, y = cy + Math.sin(a)*rr;
+    i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+  }
+  ctx.closePath();
+}
+function dab(ctx, x, y, rx, ry, rot, color, alpha){
+  ctx.globalAlpha = alpha; ctx.fillStyle = color;
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI*2); ctx.fill();
+}
+function stroke(ctx, R, x, y, len, w, color, alpha, ang = 0){
+  ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y);
+  const segs = 4;
+  for (let i = 1; i <= segs; i++){
+    const t = i/segs, px = x + Math.cos(ang)*len*t, py = y + Math.sin(ang)*len*t + (R()-.5)*w*1.2;
+    ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  // dry-brush bristle streaks
+  ctx.lineWidth = Math.max(1, w*.18); ctx.globalAlpha = alpha*.6;
+  for (let b = 0; b < 3; b++){
+    const off = (R()-.5)*w*.9;
+    ctx.beginPath(); ctx.moveTo(x, y+off); ctx.lineTo(x + Math.cos(ang)*len*(.7+R()*.5), y + Math.sin(ang)*len + off + (R()-.5)*w); ctx.stroke();
+  }
+}
+
+function paintCloud(wCss, pal, seed, back){
+  const d = DPR(), W = wCss*d, H = W*.7, pad = W*.08;
+  const c = mk(W + pad*2, H + pad*2), x = c.getContext('2d'), R = rng(seed);
+  x.translate(pad, pad);
+  const base = back ? mix(pal.base, pal.shade, .22) : pal.base;
+  const n = 4 + Math.floor(R()*3), baseY = H*.8;
+  const lobes = [];
+  for (let i = 0; i < n; i++){
+    const t = i/(n-1);
+    const r = W*(.14 + R()*.07) * (1.25 - Math.abs(t-.5)*.8);
+    lobes.push({cx: W*(.16 + t*.68) + (R()-.5)*W*.05, cy: baseY - r*(.55 + R()*.35), r, ph:[R()*6.3,R()*6.3,R()*6.3]});
+  }
+  const sil = (dx, dy) => {
+    x.beginPath();
+    lobes.forEach(l => blobPath(x, l.cx+dx, l.cy+dy, l.r, l.ph));
+    x.roundRect(W*.1+dx, baseY - H*.2 + dy, W*.8, H*.2, H*.1);
+  };
+  // shadow body
+  x.globalAlpha = 1; x.fillStyle = pal.shade; sil(W*.012, H*.06); x.fill();
+  // main body
+  x.fillStyle = base; sil(0, 0); x.fill();
+  // painted interior
+  x.save(); sil(0, 0); x.clip();
+  // soft warm underside
+  const g = x.createLinearGradient(0, baseY - H*.32, 0, baseY);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.55, pal.warm); g.addColorStop(1, pal.pink);
+  x.globalAlpha = .6; x.fillStyle = g; x.fillRect(0, 0, W, H);
+  // big soft patches: cream highlights up top, peach + pink lower down
+  const dabs = Math.round(70 * (W/900) + 30);
+  for (let i = 0; i < dabs; i++){
+    const yy = H*(.1 + R()*.8), low = yy > baseY - H*.3;
+    const col = low ? pick(R, [pal.warm, pal.warm, pal.pink, base]) : pick(R, [mix(base,'#ffffff',.45), mix(base,'#ffffff',.25), base, pal.warm]);
+    const rx = W*(.04 + R()*.08);
+    dab(x, R()*W, yy, rx, rx*(.35 + R()*.3), (R()-.5)*.35, col, .22 + R()*.35);
+  }
+  // a few small crisp dabs for gouache texture
+  for (let i = 0; i < Math.round(90*(W/900)+30); i++){
+    const rx = W*(.006 + R()*.018), yy = H*(.12 + R()*.78);
+    dab(x, R()*W, yy, rx, rx*.45, (R()-.5)*.5, pick(R, [mix(base,'#ffffff',.5), pal.pink, pal.warm, base]), .35 + R()*.4);
+  }
+  for (let i = 0; i < 7; i++){
+    const yy = H*(.35 + R()*.5);
+    stroke(x, R, W*(R()*.5), yy, W*(.2 + R()*.35), W*(.008 + R()*.012), pick(R, [pal.pink, pal.warm, mix(base,'#ffffff',.4)]), .35, (R()-.5)*.2);
+  }
+  // lavender shade along the bottom
+  for (let i = 0; i < 30; i++) dab(x, W*(.1+R()*.8), baseY - H*(R()*.06), W*(.03+R()*.06), H*(.02+R()*.03), 0, pal.shade, .3 + R()*.35);
+  x.restore();
+  // dry-brush edges leaking past the silhouette
+  for (let i = 0; i < 16; i++){
+    const l = pick(R, lobes), a = Math.PI*(1.05 + R()*.9);
+    const px = l.cx + Math.cos(a)*l.r*.96, py = l.cy + Math.sin(a)*l.r*.96;
+    stroke(x, R, px, py, W*(.04 + R()*.08), W*(.006 + R()*.012), pick(R, [base, pal.warm, mix(base,'#ffffff',.3)]), .75, (R() < .5 ? 0 : Math.PI) + (R()-.5)*.4);
+  }
+  return {c, w:c.width/d, h:c.height/d, pad:pad/d};
+}
+
+function paintOrb(size, pal, moon, seed){
+  const d = DPR(), S = size*d, pad = S*.4;
+  const c = mk(S + pad*2, S + pad*2), x = c.getContext('2d'), R = rng(seed);
+  const cx = c.width/2, cy = c.height/2, r = S/2, ph = [R()*6,R()*6,R()*6,.35];
+  // soft painted halo
+  for (let i = 0; i < 60; i++){
+    const a = R()*Math.PI*2, rr = r*(1.08 + R()*.35);
+    dab(x, cx + Math.cos(a)*rr, cy + Math.sin(a)*rr, r*(.05+R()*.08), r*(.03+R()*.04), a, pal.sun, .12 + R()*.18);
+  }
+  x.globalAlpha = 1; x.fillStyle = pal.sun; x.beginPath(); blobPath(x, cx, cy, r, ph); x.fill();
+  x.save(); x.beginPath(); blobPath(x, cx, cy, r, ph); x.clip();
+  for (let i = 0; i < 90; i++){
+    const rx = r*(.05 + R()*.14);
+    dab(x, cx + (R()-.5)*S, cy + (R()-.5)*S, rx, rx*.4, (R()-.5)*.4, pick(R, [mix(pal.sun,'#ffffff',.4), pal.sun, mix(pal.sun, pal.band, .3)]), .25 + R()*.35);
+  }
+  // horizontal painted bands, like the reference moon
+  const bands = moon ? [.15, .42] : [.32];
+  bands.forEach(b => stroke(x, R, cx - r*1.1, cy + r*b, S*1.2, r*(moon ? .12 : .18), pal.band, .85, (R()-.5)*.08));
+  x.restore();
+  return {c, w:c.width/d, h:c.height/d};
+}
+
+function paintSky(Wc, Hc, pal, seed, fog){
+  const d = DPR(), W = Wc*d, H = Hc*d;
+  const c = mk(W, H), x = c.getContext('2d'), R = rng(seed);
+  const g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, pal.sky[0]); g.addColorStop(1, pal.sky[1]);
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  // broad gouache strokes
+  const n = Math.round(150 * Math.max(.6, (W*H)/(1600*1000*d*d)));
+  for (let i = 0; i < n; i++){
+    const y = R()*H, t = Math.min(1, Math.max(0, y/H + (R()-.5)*.25));
+    const tone = mix(mix(pal.sky[0], pal.sky[1], t), R() < .5 ? '#ffffff' : pal.scribble, .06 + R()*.1);
+    stroke(x, R, R()*W - W*.2, y, W*(.15 + R()*.5), H*(.012 + R()*.035), tone, .35 + R()*.3, (R()-.5)*.12);
+  }
+  // crayon scribbles: zigzags and hatching
+  x.lineJoin = 'round';
+  const lw = Math.max(2, W*.0022);
+  const marks = 5 + Math.floor(R()*3);
+  for (let i = 0; i < marks; i++){
+    const sx = R()*W, sy = R()*H*.9, w = W*(.06 + R()*.08);
+    x.strokeStyle = pal.scribble; x.lineWidth = lw; x.globalAlpha = .55 + R()*.25;
+    if (R() < .5){
+      const peaks = 5 + Math.floor(R()*5), amp = H*(.03 + R()*.04);
+      x.beginPath(); x.moveTo(sx, sy);
+      for (let k = 1; k <= peaks*2; k++) x.lineTo(sx + w*k/(peaks*2) + (R()-.5)*lw*2, sy + (k%2 ? -amp : 0) * (.7 + R()*.6));
+      x.stroke();
+    } else {
+      const lines = 6 + Math.floor(R()*7), len = H*(.05 + R()*.06);
+      for (let k = 0; k < lines; k++){
+        const ox = sx + k*w/lines;
+        x.beginPath(); x.moveTo(ox, sy); x.lineTo(ox + len*.6 + (R()-.5)*lw*3, sy - len + (R()-.5)*lw*3); x.stroke();
+      }
+    }
+  }
+  if (fog){
+    for (let i = 0; i < 22; i++) stroke(x, R, -W*.1 + R()*W*.5, H*(.15 + R()*.8), W*(.5 + R()*.6), H*(.03 + R()*.05), pick(R, [pal.base, mix(pal.base, pal.pink, .3)]), .35 + R()*.25, (R()-.5)*.05);
+  }
+  return c;
+}
+
+function paintSpeckle(){
+  const c = mk(220, 220), x = c.getContext('2d'), R = rng(7);
+  for (let i = 0; i < 1300; i++){
+    const light = R() < .72;
+    x.globalAlpha = light ? .2 + R()*.6 : .08 + R()*.22;
+    x.fillStyle = light ? '#fffaf0' : '#1c1f5c';
+    const r = .35 + R()*(light ? .9 : .7);
+    x.beginPath(); x.arc(R()*220, R()*220, r, 0, Math.PI*2); x.fill();
+  }
+  $('#speckle').style.backgroundImage = `url(${c.toDataURL()})`;
+}
+paintSpeckle();
+
+/* ---------- scene ---------- */
+const scv = $('#scene'), sctx = scv.getContext('2d');
+const SLOTS = [
+  {x:-16,y:2, w:68},
+  {x:48, y:38,w:74},
+  {x:24, y:-16,w:56, back:true},
+  {x:70, y:-10,w:54, back:true},
+  {x:-24,y:54,w:70},
+  {x:40, y:68,w:66},
+  {x:84, y:18,w:48, back:true},
+  {x:4,  y:26,w:48, back:true}
+];
+const SINGLE = [{x:54, y:4, w:54}];
+let W = 0, H = 0;
+let sky = {cur:null, prev:null, fade:1};
+let orb = {sprite:null, alpha:0, target:0};
+let clouds = [];
+let fogBands = [];
+let sceneKey = '', wind = 1;
+const seedBase = 11;
+
+function cloudWidth(wPct){ return Math.min(wPct/100*W, wPct/100*H*1.5); }
+function buildScene(key, look, p, force){
+  const sig = key + '|' + look + '|' + JSON.stringify(p) + '|' + Math.round(W) + 'x' + Math.round(H);
+  if (sig === sceneKey && !force) return;
+  const sameLayout = sceneKey.split('|')[0] === key;
+  sceneKey = sig;
+  const s = STATES[key];
+  // sky crossfade
+  sky.prev = sky.cur; sky.cur = paintSky(W, H, p, seedBase + key.length*13, !!s.fog); sky.fade = sky.prev ? 0 : 1;
+  // sun / moon
+  const night = look === 'night';
+  orb.target = !s.fog && (night ? s.n <= 3 : !!s.sun) ? 1 : (s.fog && !night ? .5 : 0);
+  orb.sprite = paintOrb(Math.min(W, H) * (night ? .17 : .22), p, night, seedBase + 3);
+  // clouds: old ones fade out, new ones fade in (repaint in place if layout is the same)
+  const slots = s.n === 1 ? SINGLE : SLOTS.slice(0, s.n);
+  if (sameLayout && clouds.filter(c => !c.dying).length === slots.length){
+    clouds.filter(c => !c.dying).forEach(c => { c.next = paintCloud(cloudWidth(c.wPct), p, c.seed, c.back); });
+  } else {
+    clouds.forEach(c => c.dying = true);
+    slots.forEach((sl, i) => {
+      const seed = seedBase*31 + i*977;
+      clouds.push({x: sl.x/100*W, yPct: sl.y, wPct: sl.w, back: !!sl.back, seed, sprite: paintCloud(cloudWidth(sl.w), p, seed, !!sl.back),
+                   alpha: 0, speed: sl.back ? 14 : 26 + i*4, ph: Math.random()*6.28});
+    });
+  }
+  // fog bands
+  fogBands = s.fog ? Array.from({length:4}, (_, i) => {
+    const R = rng(seedBase + i*91), cw = W*1.2, ch = H*.16, cc = mk(cw*DPR(), ch*DPR()), x = cc.getContext('2d');
+    for (let k = 0; k < 18; k++) stroke(x, R, R()*cw*DPR()*.3, ch*DPR()*(.25 + R()*.5), cw*DPR()*(.5 + R()*.5), ch*DPR()*(.12 + R()*.2), pick(R, [p.base, mix(p.base, p.pink, .25)]), .3 + R()*.2, (R()-.5)*.04);
+    return {c:cc, w:cw, h:ch, x: -W*.1 - R()*W*.2, y: H*(.18 + i*.18), speed: 10 + i*6};
+  }) : [];
+}
+
+function resizeScene(){
+  const r = stage.getBoundingClientRect(), d = DPR();
+  W = r.width; H = r.height;
+  scv.width = Math.max(1, W*d); scv.height = Math.max(1, H*d);
+  sctx.setTransform(d,0,0,d,0,0);
+}
+
+function drawScene(t, dt){
+  sctx.clearRect(0, 0, W, H);
+  sctx.globalAlpha = 1;
+  if (sky.fade < 1) sky.fade = Math.min(1, sky.fade + dt/1.4);
+  if (sky.prev && sky.fade < 1){ sctx.globalAlpha = 1; sctx.drawImage(sky.prev, 0, 0, W, H); }
+  if (sky.cur){ sctx.globalAlpha = sky.fade; sctx.drawImage(sky.cur, 0, 0, W, H); }
+  // orb
+  orb.alpha += (orb.target - orb.alpha) * Math.min(1, dt*1.5);
+  if (orb.sprite && orb.alpha > .01){
+    const bob = reduce ? 0 : Math.sin(t/3000)*H*.006;
+    sctx.globalAlpha = orb.alpha;
+    sctx.drawImage(orb.sprite.c, W*.06, H*.06 + bob, orb.sprite.w, orb.sprite.h);
+  }
+  // clouds: back first
+  const scale = Math.max(.6, W/1000);
+  const order = [...clouds].sort((a,b) => (b.back?1:0) - (a.back?1:0));
+  for (const c of order){
+    if (c.next){ c.sprite = c.next; c.next = null; }
+    c.alpha += ((c.dying ? 0 : 1) - c.alpha) * Math.min(1, dt*1.3);
+    if (!reduce) c.x += c.speed * scale * wind * dt;
+    if (c.x > W + 10) c.x = -c.sprite.w - Math.random()*W*.15;
+    const bob = reduce ? 0 : Math.sin(t/2600 + c.ph) * H * .01;
+    const breathe = reduce ? 1 : 1 + Math.sin(t/4200 + c.ph)*.012;
+    sctx.globalAlpha = c.alpha;
+    const w = c.sprite.w*breathe, h = c.sprite.h*breathe;
+    sctx.drawImage(c.sprite.c, c.x - c.sprite.pad, c.yPct/100*H - c.sprite.pad + bob - (h - c.sprite.h), w, h);
+  }
+  clouds = clouds.filter(c => !(c.dying && c.alpha < .02));
+  // fog
+  for (const f of fogBands){
+    if (!reduce) f.x += f.speed * dt;
+    if (f.x > W) f.x = -f.w;
+    sctx.globalAlpha = .9;
+    sctx.drawImage(f.c, f.x, f.y, f.w, f.h);
+  }
+  sctx.globalAlpha = 1;
+}
+
+/* ---------- particles: crayon rain, snow, stars, lightning ---------- */
+const cv = $('#fx'), ctx = cv.getContext('2d');
+let drops=[], flakes=[], stars=[], bolt=null;
+let fx = {rain:0, snow:false, stars:false, color:'#ffffff', star:'#ffffff', bolt:'#ffe08a'};
+let lastFxSig = '';
+function resizeFx(){
+  const d = DPR();
+  cv.width = Math.max(1, W*d); cv.height = Math.max(1, H*d);
+  ctx.setTransform(d,0,0,d,0,0);
+  seed();
+}
+const kk = () => Math.max(.35, (W*H)/(1440*900)) * (reduce ? .3 : 1);
+function newDrop(anywhere){
+  const heavy = fx.rain > .5;
+  return {x:Math.random()*(W+240)-120, y:anywhere ? Math.random()*H : -30-Math.random()*H*.3,
+          l:(heavy?16:9)+Math.random()*(heavy?18:8), v:(heavy?900:500)+Math.random()*380, j:(Math.random()-.5)*3};
+}
+function seed(){
+  drops = fx.rain ? Array.from({length:Math.round(220*fx.rain*kk())}, () => newDrop(true)) : [];
+  flakes = fx.snow ? Array.from({length:Math.round(160*kk())}, () => ({x:Math.random()*W, y:Math.random()*H, r:1.4+Math.random()*3.2, v:26+Math.random()*44, ph:Math.random()*6.28, a:14+Math.random()*26})) : [];
+  stars = fx.stars ? Array.from({length:Math.round(80*Math.max(.4,(W*H)/(1440*900)))}, () => ({x:Math.random()*W, y:Math.random()*H*.6, r:.6+Math.random()*1.4, p:Math.random()*6.28, s:.5+Math.random()*1.6, cross:Math.random() < .12})) : [];
+}
+function makeBolt(){
+  const pts = []; let x = W*(.25 + Math.random()*.5), y = 0;
+  while (y < H*.62){ pts.push([x, y]); y += H*(.05 + Math.random()*.06); x += (Math.random()-.5)*W*.07; }
+  pts.push([x, y]);
+  bolt = {pts, until: performance.now() + 260};
+}
+function drawFx(t, dt){
+  ctx.clearRect(0,0,W,H);
+  if (stars.length){
+    ctx.fillStyle = fx.star; ctx.strokeStyle = fx.star; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+    for (const s of stars){
+      ctx.globalAlpha = .3 + .7*(.5+.5*Math.sin(t/1000*s.s + s.p));
+      if (s.cross){ const L = s.r*3.5; ctx.beginPath(); ctx.moveTo(s.x-L,s.y); ctx.lineTo(s.x+L,s.y); ctx.moveTo(s.x,s.y-L); ctx.lineTo(s.x,s.y+L); ctx.stroke(); }
+      else { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283); ctx.fill(); }
+    }
+  }
+  if (drops.length){
+    const lw = Math.max(1.6, Math.min(W,H)/420);
+    ctx.strokeStyle = fx.color; ctx.lineCap = 'round';
+    ctx.globalAlpha = .7; ctx.lineWidth = lw;
+    ctx.beginPath();
+    for (const d of drops){
+      d.y += d.v*dt; d.x += d.v*.14*dt;
+      if (d.y - d.l > H || d.x > W+120) Object.assign(d, newDrop(false));
+      ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - d.l*.14 + d.j, d.y - d.l);
+    }
+    ctx.stroke();
+    // second, offset pass for a waxy crayon edge
+    ctx.globalAlpha = .3; ctx.lineWidth = lw*.5;
+    ctx.beginPath();
+    for (const d of drops){ ctx.moveTo(d.x + lw*.8, d.y - 2); ctx.lineTo(d.x - d.l*.14 + d.j + lw*.8, d.y - d.l*.8); }
+    ctx.stroke();
+  }
+  if (flakes.length){
+    ctx.fillStyle = fx.color;
+    for (const f of flakes){
+      f.y += f.v*dt; f.x += Math.sin(t/1000 + f.ph)*f.a*dt + 6*wind*dt;
+      if (f.y > H+8){ f.y = -8; f.x = Math.random()*W; }
+      ctx.globalAlpha = .9; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = .45; ctx.beginPath(); ctx.arc(f.x + f.r*.6, f.y - f.r*.4, f.r*.7, 0, 6.283); ctx.fill();
+    }
+  }
+  if (bolt && performance.now() < bolt.until){
+    ctx.globalAlpha = 1; ctx.strokeStyle = fx.bolt; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(4, W*.005);
+    ctx.beginPath(); bolt.pts.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke();
+    ctx.globalAlpha = .7; ctx.strokeStyle = '#fffaf0'; ctx.lineWidth = Math.max(1.5, W*.0018);
+    ctx.beginPath(); bolt.pts.forEach(([x,y],i) => i ? ctx.lineTo(x+3,y+2) : ctx.moveTo(x+3,y+2)); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+let last = performance.now();
+function frame(t){
+  const dt = Math.min(.05, (t-last)/1000); last = t;
+  if (W && H){ drawScene(t, dt); drawFx(t, dt); }
+  requestAnimationFrame(frame);
+}
+
+let stormTimer = null, stormOn = false;
+function storm(on){
+  if (on === stormOn) return;
+  stormOn = on; clearTimeout(stormTimer);
+  if (!on || reduce) return;
+  const loop = () => {
+    const f = $('#flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+    makeBolt();
+    stormTimer = setTimeout(loop, 3500 + Math.random()*6500);
+  };
+  stormTimer = setTimeout(loop, 1200);
+}
+
+/* ---------- render: the look follows the weather where the person is ---------- */
+let rendered = false, lastPhase = '';
+function render(force){
+  rendered = true;
+  if (!W || !H){ resizeScene(); resizeFx(); }
+  const key = preview.state !== 'live' ? preview.state : data.live ? codeToState(data.code) : 'unknown';
+  const s = STATES[key];
+  const ph = currentPhase(); lastPhase = ph;
+  const look = LOOK(ph);
+  const night = look === 'night';
+  const p = palette(key, look);
+
+  stage.style.setProperty('--skyA', p.sky[0]);
+  stage.style.setProperty('--flash', p.flash || '#ffffff');
+  const root = document.documentElement.style;
+  root.setProperty('--ink', p.ink);
+  root.setProperty('--glow', p.inkShadow);
+
+  wind = s.storm ? 2.6 : s.rain ? 1.7 : s.snow ? .8 : 1;
+  buildScene(key, look, p, force === true);
+
+  const next = {rain:s.rain||0, snow:!!s.snow, stars: night && s.n <= 3 && !s.fog, color:p.fx, star:'#fff3d6', bolt:p.bolt || '#ffe08a'};
+  const sig = JSON.stringify(next);
+  if (sig !== lastFxSig){ lastFxSig = sig; fx = next; seed(); }
+  storm(!!s.storm);
+
+  tick();
+}
+
+function tick(){
+  const n = locNow();
+  $('#time').textContent = `${pad(n.h)}:${pad(n.m)}`;
+  const d = data.offset != null ? new Date(Date.now() + data.offset*1000) : new Date();
+  $('#date').textContent = d.toLocaleDateString(undefined, {weekday:'long', day:'numeric', month:'long', timeZone: data.offset != null ? 'UTC' : undefined});
+  const ph = currentPhase();
+  if (rendered && preview.time === 'auto' && ph !== lastPhase) render();
+}
+setInterval(tick, 1000);
+
+/* ---------- data: location comes only from the browser's permission ---------- */
+async function getJSON(url){
+  const c = new AbortController(), t = setTimeout(() => c.abort(), 7000);
+  try { const r = await fetch(url, {signal:c.signal}); if (!r.ok) throw new Error(r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+let refreshTimer = null;
+async function loadWeather(lat, lon){
+  const j = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,is_day&daily=sunrise,sunset&timezone=auto&forecast_days=1`);
+  data = {city:'', temp:j.current.temperature_2m, hum:j.current.relative_humidity_2m, code:j.current.weather_code,
+          sunrise:j.daily.sunrise[0].slice(11,16), sunset:j.daily.sunset[0].slice(11,16), offset:j.utc_offset_seconds, live:true};
+  lastFetch = Date.now();
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({t: lastFetch, data})); }catch(e){}
+  render();
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => loadWeather(lat, lon).catch(() => {}), 10*60*1000);
+}
+function unavailable(){
+  data = {city:'', temp:null, hum:null, code:null, sunrise:'06:00', sunset:'18:00', offset:null, live:false};
+  clearInterval(refreshTimer);
+  render();
+}
+/* A slow first fix is common right after the permission prompt, so retry before giving up.
+   A denied permission stops at once. */
+function useMyLocation(tries = 0){
+  if (!('geolocation' in navigator)) return unavailable();
+  // a failed or slow lookup is retried; if an earlier reading is showing, it stays up instead of going blank
+  const retry = () => {
+    if (tries < 3) setTimeout(() => useMyLocation(tries + 1), 1500);
+    else if (!data.live) unavailable();
+  };
+  navigator.geolocation.getCurrentPosition(
+    p => { loadWeather(p.coords.latitude, p.coords.longitude).catch(retry); },
+    err => { if (err && err.code === 1) unavailable(); else retry(); },   // denied: stop at once
+    {timeout:25000, maximumAge:10*60*1000}
+  );
+}
+/* show the last reading only when permission is already granted, so a revoked permission still shows unavailable */
+function showCached(){
+  try{
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (c && Date.now() - c.t < 6*3600*1000){ data = c.data; lastFetch = c.t; render(); }
+  }catch(e){}
+}
+/* refresh when the tab comes back into view, if the last reading is more than 5 minutes old */
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && Date.now() - lastFetch > 5*60*1000) useMyLocation();
+});
+
+/* ---------- index menu ---------- */
+function buildMenu(){
+  const list = $('#menuList');
+  list.innerHTML = '';
+  FACES.forEach(f => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.className = 'menu-item';
+    b.setAttribute('aria-current', f.id === 'clock' ? 'true' : 'false');
+    b.innerHTML = `<span class="n">${f.n}</span><span>${f.name}</span><span class="tg">${f.tag}</span>`;
+    b.onclick = () => closeMenu();     // choosing a face returns to full screen
+    li.appendChild(b); list.appendChild(li);
+  });
+}
+buildMenu();
+let menuOpen = false;
+function openMenu(){ menuOpen = true; document.body.classList.add('menu-open'); $('#burger').setAttribute('aria-expanded','true'); }
+function closeMenu(){ menuOpen = false; document.body.classList.remove('menu-open'); $('#burger').setAttribute('aria-expanded','false'); setTimeout(resize, 600); }
+$('#burger').onclick = () => menuOpen ? closeMenu() : openMenu();
+$('#menuClose').onclick = closeMenu;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && menuOpen) closeMenu(); });
+
+/* ---------- controls ---------- */
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1700); }
+$('#shareBtn').onclick = async () => {
+  const url = location.origin + location.pathname;
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch(e){ toast(url); }
+};
+
+let idleT;
+function wake(){
+  $('#bar').classList.remove('idle');
+  clearTimeout(idleT);
+  idleT = setTimeout(() => { if (!menuOpen) $('#bar').classList.add('idle'); }, 3200);
+}
+['mousemove','touchstart','keydown'].forEach(ev => addEventListener(ev, wake, {passive:true}));
+
+/* ---------- resize ---------- */
+function resize(){ resizeScene(); resizeFx(); if (rendered) render(true); }
+let resizeT = null;
+new ResizeObserver(() => {
+  resizeScene(); resizeFx();
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => { if (rendered) render(true); }, 220);
+}).observe(stage);
+
+/* ---------- start ---------- */
+requestAnimationFrame(frame);
+resizeScene(); resizeFx();
+render(); wake();
+if (navigator.permissions) navigator.permissions.query({name:'geolocation'}).then(s => { if (s.state === 'granted') showCached(); }).catch(() => {});
+useMyLocation();
+})();
+</script>
+</body>
+</html>
